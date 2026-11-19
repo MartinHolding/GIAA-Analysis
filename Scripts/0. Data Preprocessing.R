@@ -13,7 +13,7 @@ library(readr)
 
 #Section 1
 
-# Bring in all the files and do some exploratory analysis
+# Bring in all the files
 
 
 #Load in each file separately and also create a master set containing all years data
@@ -68,4 +68,7 @@ col_types[which(col_types != "integer")]
 #Save Master Data
 
 write.csv(master_data, "Data/master_data.csv", quote = FALSE)
+
+
+
 
