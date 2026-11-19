@@ -1,0 +1,36 @@
+---
+title: "MP Expenses Analysis"
+format: html
+editor: visual
+---
+
+## Background
+
+The Internal Audits team have requested a breakdown and analysis of the total spend data available on the IPSA website. This data has been provided year on year since 2010 and contains details of the MP expenses in the areas of office spend, staffing spend, accommodation spend and travel and subsistence spend. Total budget information for each category has been made available since 2013.
+
+Questions:
+
+Average spend for each category over time - increasing? decreasing?
+
+Linearly? In line with inflation?
+
+Do MPs serving multiple terms increase costs over time?
+
+Systematic differences in expenses for MPs in different areas of the country?
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
