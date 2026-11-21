@@ -74,7 +74,7 @@ master_data <- master_data %>% select(-X..MP.s.name)
 
 #Save Master Data
 
-write.csv(master_data, "Data/master_data.csv", quote = FALSE, row.names = FALSE)
+write.csv(master_data, "Data/master_data.csv", quote = TRUE, row.names = FALSE)
 
 
 
