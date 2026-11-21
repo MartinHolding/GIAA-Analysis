@@ -64,10 +64,17 @@ sum(col_types != "integer")
 
 col_types[which(col_types != "integer")]
 
+#Some columns have changed places or gotten mixed around. MPs Name is shifted to the end for the final file, fill in the blanks in the master
+#data and remove the duplicated column
+
+
+master_data$X.MP.s.name[is.na(master_data$X.MP.s.name)] <- master_data$X..MP.s.name[!is.na(master_data$X..MP.s.name)]
+
+master_data <- master_data %>% select(-X..MP.s.name)
 
 #Save Master Data
 
-write.csv(master_data, "Data/master_data.csv", quote = FALSE)
+write.csv(master_data, "Data/master_data.csv", quote = FALSE, row.names = FALSE)
 
 
 
