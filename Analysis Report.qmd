@@ -18,12 +18,14 @@ Do MPs serving multiple terms increase costs over time?
 
 Systematic differences in expenses for MPs in different areas of the country?
 
+Zac gold smith did not use claim any expenses for office spend over his ten year tenure (2010-2021)?
+
 ## Running Code
 
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
 ```{r}
-1 + 1
+read.csv("\\Data\\Master_Data.csv")
 ```
 
 You can add options to executable code like this

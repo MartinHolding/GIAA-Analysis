@@ -72,6 +72,13 @@ master_data$X.MP.s.name[is.na(master_data$X.MP.s.name)] <- master_data$X..MP.s.n
 
 master_data <- master_data %>% select(-X..MP.s.name)
 
+#factorise the year column to be something more readable
+
+master_data$Year <- factor(master_data$Year, labels = c("Year 2010-11", "Year 2011-12", "Year 2012-13", "Year 2013-24", "Year 2014-15", 
+                                                        "Year 2015-16", "Year 2016-17", "Year 2017-18", "Year 2018-19", "Year 2019-20", 
+                                                        "Year 2020-21", "Year 2021-21", "Year 2021-22", "Year 2022-23", "Year 2023-24", 
+                                                        "Year 2024-25"))
+
 #Save Master Data
 
 write.csv(master_data, "Data/master_data.csv", quote = TRUE, row.names = FALSE)
