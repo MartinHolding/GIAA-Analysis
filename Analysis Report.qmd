@@ -10,6 +10,26 @@ The Internal Audits team have requested a breakdown and analysis of the total sp
 
 Questions:
 
+Overall Spend - Which MPs are significantly over/under spending in overall costs?
+
+-   Analysis - calculated overall spend by summating all spend columns across all years
+
+-   Plotted distributions of overall spends across years
+
+-   Calculated Z score for each MP for each year to determine over/under spend for that year
+
+-   Repeat 'offenders' across multiple years?
+
+Outlier detection in:
+
+-   Office spend (accounting for london/non london status)
+
+-   Staffing spend
+
+-   Accomodation spend
+
+Benford's law analysis?
+
 Average spend for each category over time - increasing? decreasing?
 
 Linearly? In line with inflation?
@@ -18,7 +38,7 @@ Do MPs serving multiple terms increase costs over time?
 
 Systematic differences in expenses for MPs in different areas of the country?
 
-Zac gold smith did not use claim any expenses for office spend over his ten year tenure (2010-2021)?
+Zac gold smith did not claim any expenses for office spend over his ten year tenure (2010-2021)?
 
 ## Running Code
 
