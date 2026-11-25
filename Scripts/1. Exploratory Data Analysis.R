@@ -32,6 +32,22 @@ length(unique(master_data$MP.name[duplicated(master_data$MP.name)]))
 #Store this list for later
 mp_multiple_entries <- unique(master_data$MP.name[duplicated(master_data$MP.name)])
 
+#for controlling how much spend MPs are doing, note if their office in London Area or not (office and staffing), they own, rent or use hotels for accomondation in London
+constiuencies_in_london <- master_data$Constituency[grep("^Standard London Area budget.*$", master_data$Office_reason.for.budget.set)]
+constiuencies_not_in_london <-  master_data$Constituency[grep("^Standard non-London Area budget.*$", master_data$Office_reason.for.budget.set)]
+
+master_data$london_office <- ifelse(master_data$Constituency %in% constiuencies_in_london, 1, 0)
+
+#Note this will only work where I have access to accomodation reason for budget
+master_data$accomodation_own_rent_hotel <- 0 #Other/unknown accomoodation status
+
+master_data$accomodation_own_rent_hotel[grep(".*owns.*$", master_data$Accommodation_reason.for.budget.set)] <- 1 #owns their own home in London
+
+master_data$accomodation_own_rent_hotel[grep(".*renting.*$", master_data$Accommodation_reason.for.budget.set)] <- 2 #rents home
+
+master_data$accomodation_own_rent_hotel[grep(".*Hotels.*$", master_data$Accommodation_reason.for.budget.set)] <- 3 #Uses hotels
+
+
 #First look at overall spends across the years. Use calculated as reported isn't available for all years. Calculated is the sum of 
 #all available spend categories
 
@@ -99,9 +115,10 @@ lm_year_by_overall_spend <- ggplot(master_data, aes(x = fy_index, y = Overall.to
 show(lm_year_by_overall_spend)
 
 #Get a list of MPs who have significantly overspent or underspent - based on absolute Z >= 2
+#Controlling for office location and accommodation spend status
 
 master_data <- master_data %>%
-  group_by(Financial.year) %>%
+  group_by(Financial.year, london_office, accomodation_own_rent_hotel) %>%
   mutate(z_score_overall = (Overall.total.spend..calculated. - mean(Overall.total.spend..calculated.)) / sd(Overall.total.spend..calculated.)) %>%
   ungroup()
 
@@ -113,8 +130,81 @@ ggplot(over_under_spends, aes(x = Financial.year.factor, y = z_score_overall)) +
 
 #find those who over or under spend in multiple years 
 
-over_under_spends %>% 
+unique_mps <- unique(over_under_spends$MP.name)
 
+mps_over_under_spending_multiple <- over_under_spends %>%  
+  # Keep only relevant categories
+  group_by(MP.name) %>%
+  summarise(
+    num_appearances = n(),                   # Total occurrences
+    overspend_count = sum(z_score_overall > 0),     # Count where score > 0
+    underspend_count   = sum(z_score_overall < 0),      # Count where score < 0
+    .groups = "drop"
+  )
+
+# Repeat this analysis for the office, staffing and accomodation spends
+
+#Office - control for office location london vs non london
+
+
+master_data <- master_data %>%
+  group_by(Financial.year, london_office) %>%
+  mutate(z_score_office = (Office_spend - mean(Office_spend)) / sd(Office_spend)) %>%
+  ungroup()
+
+over_under_spends_office <- master_data %>%
+  filter(abs(z_score_office) >= 2)
+
+ggplot(over_under_spends_office, aes(x = Financial.year.factor, y = z_score_office)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+#Staffing - control for office location london vs non london
+master_data <- master_data %>%
+  group_by(Financial.year, london_office) %>%
+  mutate(z_score_staffing = (Staffing_spend - mean(Staffing_spend)) / sd(Staffing_spend)) %>%
+  ungroup()
+
+over_under_spends_staffing <- master_data %>%
+  filter(abs(z_score_staffing) >= 2)
+
+ggplot(over_under_spends_staffing, aes(x = Financial.year.factor, y = z_score_staffing)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+#Accommodation
+master_data <- master_data %>%
+  group_by(Financial.year, accomodation_own_rent_hotel) %>%
+  mutate(z_score_accomodation = (Accommodation_spend - mean(Accommodation_spend)) / sd(Accommodation_spend)) %>%
+  ungroup()
+
+over_under_spends_accomodation <- master_data %>%
+  filter(abs(z_score_accomodation) >= 2)
+
+ggplot(over_under_spends_accomodation, aes(x = Financial.year.factor, y = z_score_accomodation)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+
+
+#Can office spend predict office location? 
+
+Logistic regression?
+
+
+  
+##############################
+  
+#k means clustering? Just to see...if I can get it to work
+library(factoextra)
+library(cluster)
+
+
+gap_stat <- clusGap(df,
+                    FUN = kmeans,
+                    nstart = 25,
+                    K.max = 10,
+                    B = 50)
 #Stacked bar chart showing breakdown of spends by category across the years
 
 
@@ -135,6 +225,7 @@ mean_office_bar <- ggplot(mean_office, aes(x = Financial.year, y = avg)) +
 show(mean_office_bar)
 
 #Distribution of office spends across all MPS 
+
 
 office_scatter <- ggplot(master_data, aes(Financial.year, Office_spend, fill = Financial.year)) +
   geom_violin() +
