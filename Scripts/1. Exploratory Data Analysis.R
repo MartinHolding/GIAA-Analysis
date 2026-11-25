@@ -7,6 +7,7 @@
 library(dplyr)
 library(readr)
 library(ggplot2)
+library(corrplot)
 
 options(scipen = 999)
 
@@ -16,7 +17,6 @@ options(scipen = 999)
 
 master_data <- read.csv("Data/totalSpend_AllYears2.csv", header = TRUE)
 
-master_data$Office.spend.int <- as.integer(master_data$Office...spend)
 #How many MPs are represented?
 
 length(unique(master_data$MP.name))
@@ -59,7 +59,7 @@ mean_overall_bar <- ggplot(mean_overall, aes(x = Financial.year, y = avg)) +
   geom_col() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
-show(mean_office_bar)
+show(mean_overall_bar)
 
 #Distributions of overall spends across MPs
 
@@ -187,12 +187,99 @@ ggplot(over_under_spends_accomodation, aes(x = Financial.year.factor, y = z_scor
 
 
 
-#Can office spend predict office location? 
+#Can spend predict office location? Use a logistic regression to predict office location (london vs non london)
+#For this analysis I'm interested in whether the spend amounts can be used to predict office location, and if so, where any 
+#spends misclassified. This might be indication of over/under spending and warrant further investigation
 
-Logistic regression?
+log_reg_data <- master_data %>% 
+  select(MP.name, Office_spend, Staffing_spend, Accommodation_spend, Overall.total.spend..calculated., london_office)
 
 
-  
+#check correlations of predictor variables
+
+# Remove the target column
+predictors_data <- log_reg_data[, !(names(log_reg_data) %in% c("london_office", "MP.name"))]
+
+#Some NAs are causing problems with the correlation function - remove these for now. Only affects a small number of rows
+predictors_data <- na.omit(predictors_data)
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(predictors_data)
+
+# Plot the correlation heatmap
+
+library(reshape2)
+melted_corr_matrix <- melt(correlation_matrix)
+
+# Plot the heatmap with ggplot2
+ggplot(data = melted_corr_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab", 
+                       name="Correlation") +
+  theme_minimal() + # Minimal theme for a clean look
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(x = "", y = "") + # Remove axis labels
+  geom_text(aes(Var1, Var2, label = round(value, 2)), color = "black", size = 4) +
+  theme(axis.text=element_text(size=15))
+
+#Overall total spend and staffing spend are highly correlated, and overall and office spend moderately so. Omit overall spend from regression.
+#other variables look ok.
+
+set.seed(1)
+
+#Use 70% of dataset as training set and remaining 30% as testing set
+
+
+sample <- sample(c(TRUE, FALSE), nrow(log_reg_data), replace=TRUE, prob=c(0.7,0.3))
+train <- log_reg_data[sample, ]
+test <- log_reg_data[!sample, ]  
+
+#fit model
+log_reg_model <- glm(london_office~Office_spend+Staffing_spend+Accommodation_spend, family="binomial", data=train) #omit overall spend as it will be correlated to the other 3
+
+
+#view model summary
+summary(log_reg_model)
+
+#Assess fit using Mcfaddens R2 - values closer to 1 indicate better predictive performance
+
+pscl::pR2(log_reg_model)["McFadden"] #.47 is quite good for McFadden
+
+
+#predict the test set and see where it differs from 'reality'
+
+test$office_loc_predict <- predict(log_reg_model, test, type="response")
+
+test$london_office_prediction <- ifelse(test$office_loc_predict >= 0.5, 1, 0)
+
+xtabs(~ london_office + london_office_prediction, data = test)
+
+
+#Sensitivity and specificity analysis
+
+sensitivity_london_office <- 268/(268+193) 
+
+specificity_london_office <- 2592/(2592 + 113)
+
+#Good at avoiding missclassifing non-london offices, not so good at finding the london ones
+
+#Of the those whose office locations were incorrectly identified as being in London, how many are also over/underspending?
+
+#bring together a data frame of the MPs who both have a non london location (but log reg suggested they did) and are in the overunderspend dataset
+#Look at their z scores to see if htey are over or under spenders overall
+
+mps_false_positive_london <- unique(test$MP.name[test$london_office_prediction == 1 & test$london_office == 0])
+
+mps_FP_and_over_underspend <- mps_false_positive_london[(mps_false_positive_london %in% over_under_spends$MP.name)]
+
+
+MPs_to_investigate <- master_data %>%
+  filter(MP.name %in% mps_FP_and_over_underspend, abs(z_score_overall)>=2 ) %>%
+  select (MP.name, Financial.year, Constituency, z_score_office, z_score_staffing, z_score_accomodation, z_score_overall)
+
+
+
 ##############################
   
 #k means clustering? Just to see...if I can get it to work
