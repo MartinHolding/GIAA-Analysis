@@ -8,6 +8,7 @@ library(dplyr)
 library(readr)
 library(ggplot2)
 library(corrplot)
+library(reshape2)
 
 options(scipen = 999)
 
@@ -208,7 +209,7 @@ correlation_matrix <- cor(predictors_data)
 
 # Plot the correlation heatmap
 
-library(reshape2)
+
 melted_corr_matrix <- melt(correlation_matrix)
 
 # Plot the heatmap with ggplot2
@@ -281,84 +282,3 @@ MPs_to_investigate <- master_data %>%
 
 
 ##############################
-  
-#k means clustering? Just to see...if I can get it to work
-library(factoextra)
-library(cluster)
-
-
-gap_stat <- clusGap(df,
-                    FUN = kmeans,
-                    nstart = 25,
-                    K.max = 10,
-                    B = 50)
-#Stacked bar chart showing breakdown of spends by category across the years
-
-
-
-stacked_bar_overall <- ggplot(master_data, aes(Financial.year, ))
-
-#Now visualise the average expenditures for office expenditure
-
-#Average office spend for each year across all MPs
-mean_office <- master_data %>% 
-  group_by(Financial.year) %>%
-  summarise(avg = mean(Office_spend, na.rm = TRUE))
-
-mean_office_bar <- ggplot(mean_office, aes(x = Financial.year, y = avg)) +
-  geom_col() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-show(mean_office_bar)
-
-#Distribution of office spends across all MPS 
-
-
-office_scatter <- ggplot(master_data, aes(Financial.year, Office_spend, fill = Financial.year)) +
-  geom_violin() +
-  geom_point(position = position_jitter(seed = 1, width = 0.2)) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-show(office_scatter)
-
-office_scatter2 <- ggplot(master_data, aes(Financial.year, Office_spend, fill = Financial.year)) +
-  geom_violin() +
-  geom_boxplot (width=0.1, color="grey", alpha=0.2) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-show(office_scatter2)
-
-
-
-
-
-
-mean_staffing <- master_data %>% 
-  group_by(Financial.year) %>%
-  summarise(avg = mean(Staffing.spend, na.rm = TRUE))
-
-mean_travel <- master_data %>% 
-  group_by(Financial.year) %>%
-  summarise(avg = mean(Travel.and.subsistence.spend, na.rm = TRUE))
-
-
-mean_staffing_bar <- ggplot(mean_staffing, aes(x = Financial.year, y = avg)) +
-  geom_col() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-mean_travel_bar <- ggplot(mean_travel, aes(x = Financial.year, y = avg)) +
-  geom_col() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-show(mean_office_bar)
-show(mean_staffing_bar)
-show(mean_travel_bar)
-
-
-
-
-office_scatter2 <- ggplot(master_data, aes(Year, Office.spend, fill = Year)) +
-  geom_violin() +
-  geom_boxplot (width=0.1, color="grey", alpha=0.2) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-show(office_scatter2)

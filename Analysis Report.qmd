@@ -6,7 +6,223 @@ editor: visual
 
 ## Background
 
-The Internal Audits team have requested a breakdown and analysis of the total spend data available on the IPSA website. This data has been provided year on year since 2010 and contains details of the MP expenses in the areas of office spend, staffing spend, accommodation spend and travel and subsistence spend. Total budget information for each category has been made available since 2013.
+The Internal Audits team have requested a breakdown and analysis of the total spend data available on the IPSA website. This data has been provided year on year since 2010 and contains details of the MP expenses in the areas of office spend, staffing spend, accommodation spend and travel and subsistence spend as well as wind up and start up spend. Total budget information for each category has been made available since 2013.
+
+## Data Characterisation
+
+### Data structure
+
+The Total Spend data consisted of 15 files from the years 2010-11 to 2024-25. Data contents and structure was changeable in some years but 9 columns were consistent across all datasets:
+
+| Column Name                    | Description                                                                                                                                                                                          |
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| MP Name                        | Name of MP (Char)                                                                                                                                                                                    |
+| Constituency                   | Current constituency represented by MP (Char)                                                                                                                                                        |
+| PID                            | Personal Unique Identifier of MP (Int)                                                                                                                                                               |
+| Office Spend                   | Total spent on office related expenses in financial year (int)                                                                                                                                       |
+| Reason for budget set          | Description of why budget was allocated. Where present is either Standard London Area Budget or Standard Non-London Area Budget. Can also contain details of uplifts and reductions from IPSA (char) |
+| Remaining office budget        | Amount remaining in office budget at end of financial year (int)                                                                                                                                     |
+| Staffing Spend                 | Total spent on staffing related expenses in financial year (int)                                                                                                                                     |
+| Remaining Staffing budget      | Amount remaining in staffing budget at end of financial year (int)                                                                                                                                   |
+| Accommodation Spend            | Total spent on accommodation related expenses in financial year (int)                                                                                                                                |
+| Remaining accommodation budget | Amount remaining in accommodation budget at end of financial year (int)                                                                                                                              |
+| Wind up spend                  | Total spent on MP closing affairs upon leaving office (int)                                                                                                                                          |
+| Remaining wind up budget       | Amount remaining in wind up budget at end of financial year (int)                                                                                                                                    |
+
+Other columns that were not present in all files included:
+
+-   Subtotals for office spends, 'other parliamentary costs an overall totals
+
+-   'Other costs' spends and budget allocations
+
+-   Office, staffing, accommodation and wind up budgets
+
+-   Travel and subsistence budgets, spends and remaining amounts
+
+-   Previous constituency
+
+The data consisted of 1455 different MPs across 914 constituencies in the United Kingdom. 1111 MPs appear in the data more than once.
+
+### Data Completeness
+
+For the purposes of this and all following analysis, the 15 total spend files were amalgamated into a single master file with one row per MP per year and an overall spend column created which summated the values in the available spend columns for each MP and year.
+
+```{r}
+read.csv("\\Data\\Master_Data.csv")
+```
+
+Despite being present in all datasets, wind up spend and remaining wind up budget were not fully populated. Probably due the nature of the data contained within, it will only contain information when an MP leaves office which will not happen to every MP every year. In addition to this, gaps in recording were also observed in office spend (6), staffing spend (4), staffing remaining budget (1965, present but not consistently used until 2013/14), accommodation budget (2311, present but not consistently used until 2013/14) and accommodation spend (241)
+
+```{r}
+
+sum(is.na(master_data$MP.name))
+sum(is.na(master_data$Constituency))
+sum(is.na(master_data$pID))
+sum(is.na(master_data$Office_reason.for.budget.set))
+sum(is.na(master_data$Office_spend))
+sum(is.na(master_data$Staffing_spend))
+sum(is.na(master_data$Staffing_remaining.budget))
+sum(is.na(master_data$Accommodation_remaining.budget))
+sum(is.na(master_data$Accommodation_spend))
+
+
+
+```
+
+The following MPs have missing data in office or staffing spends:
+
+```{r}
+office_missing <- which(is.na(master_data$Office_spend))
+staffing_missing <- which(is.na(master_data$Staffing_spend))
+accommodation_missing <- which(is.na(master_data$Accommodation_spend))
+
+for(i in office_missing) {
+  print(paste(master_data$MP.name[i], "missing office spend data in year: ", master_data$Financial.year[i]))
+}
+
+for(i in staffing_missing) {
+  print(paste(master_data$MP.name[i], "missing staffing spend data in year: ", master_data$Financial.year[i]))
+}
+
+```
+
+```{r}
+accommodation_missing <- which(is.na(master_data$Accommodation_spend))
+length(unique(master_data$MP.name[accommodation_missing]))
+for(i in accommodation_missing) {
+  print(paste(master_data$MP.name[i], "missing accomodation spend data in year: ", master_data$Financial.year[i]))
+}
+```
+
+240 MPs had missing accommodation spend data, all but 3 of these occurred in 2015/16, which speaks to a possible data collection issue in that year. It is possible this was impacted by the 2015 genral election. Of the MPs who had missing accommodation spends that didn't occur in 2016/17 all three also had missing office and staffing spend data.
+
+```{r}
+for(i in accommodation_missing) {
+  if(master_data$Financial.year[i] != "2015-16") {
+      print(paste(master_data$MP.name[i], "missing accomodation spend data in year: ", master_data$Financial.year[i]))
+  }
+}
+```
+
+### General Trends
+
+As staffing, office and accommodation spends were the most consistently used data across all the years of the total spend data, the remainder of the analysis will focus on these columns as well as the calculated overall spend column.
+
+Average overall spends are increasing over time:
+
+```{r}
+mean_overall <- master_data %>%
+  group_by(Financial.year) %>%
+  summarise(avg = mean(Overall.total.spend..calculated.)) %>%
+  mutate(years_index = 2010:2024)
+
+
+mean_overall_bar <- ggplot(mean_overall, aes(x = years_index, y = avg)) +
+  geom_col() +
+  geom_smooth(
+    method = "lm",  
+    se = FALSE,      
+    color = "red",
+    size = 1
+  ) +
+    scale_x_continuous(
+    breaks = mean_overall$years_index,
+    labels = mean_overall$years_index
+  ) +
+  ylab('Average Overall Spend (£)') +
+  xlab('Financial Year') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    
+show(mean_overall_bar)
+```
+
+As are office spends:
+
+```{r}
+mean_office <- master_data %>%
+  group_by(Financial.year) %>%
+  summarise(avg = mean(Office_spend, na.rm =TRUE)) %>%
+  mutate(years_index = 2010:2024)
+
+
+mean_office_bar <- ggplot(mean_office, aes(x = years_index, y = avg)) +
+  geom_col() +
+  geom_smooth(
+    method = "lm",   # Linear model
+    se = FALSE,      # No confidence interval shading
+    color = "red",
+    size = 1
+  ) +
+  scale_x_continuous(
+    breaks = mean_office$years_index,
+    labels = mean_office$years_index
+  ) +
+  ylab('Average Office Spend (£)') +
+  xlab('Financial Year') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    
+show(mean_office_bar)
+```
+
+Staffing spends:
+
+```{r}
+mean_staffing <- master_data %>%
+  group_by(Financial.year) %>%
+  summarise(avg = mean(Staffing_spend, na.rm =TRUE)) %>%
+  mutate(years_index = 2010:2024)
+
+
+mean_staffing_bar <- ggplot(mean_staffing, aes(x = years_index, y = avg)) +
+  geom_col() +
+  geom_smooth(
+    method = "lm",   # Linear model
+    se = FALSE,      # No confidence interval shading
+    color = "red",
+    size = 1
+  ) +
+  scale_x_continuous(
+    breaks = mean_staffing$years_index,
+    labels = mean_staffing$years_index
+  ) +
+  ylab('Average Staffing Spend (£)') +
+  xlab('Financial Year') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    
+show(mean_staffing_bar)
+```
+
+and accommodation spends:
+
+```{r}
+mean_accommodation <- master_data %>%
+  group_by(Financial.year) %>%
+  summarise(avg = mean(Accommodation_spend, na.rm =TRUE)) %>%
+  mutate(years_index = 2010:2024)
+
+
+mean_accommodation_bar <- ggplot(mean_accommodation, aes(x = years_index, y = avg)) +
+  geom_col() +
+  geom_smooth(
+    method = "lm",   # Linear model
+    se = FALSE,      # No confidence interval shading
+    color = "red",
+    size = 1
+  ) +
+  scale_x_continuous(
+    breaks = mean_accommodation$years_index,
+    labels = mean_accommodation$years_index
+  ) +
+  ylab('Average Accommodation Spend (£)') +
+  xlab('Financial Year') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    
+show(mean_accommodation_bar)
+```
+
+## Z Score Outlier Analysis
+
+## Logisitic Regression Modelling
 
 Questions:
 
@@ -24,9 +240,9 @@ Outlier detection in:
 
 -   Office spend (accounting for london/non london status)
 
--   Staffing spend
+-   Staffing spend (accounting for london/non london status)
 
--   Accommodation spend
+-   Accommodation spend (accounting for whether MP owned property in London)
 
 Benford's law analysis?
 
