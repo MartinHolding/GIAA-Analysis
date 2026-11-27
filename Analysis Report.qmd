@@ -222,53 +222,324 @@ show(mean_accommodation_bar)
 
 ## Z Score Outlier Analysis
 
-## Logisitic Regression Modelling
-
-Questions:
-
-Overall Spend - Which MPs are significantly over/under spending in overall costs?
-
--   Analysis - calculated overall spend by summating all spend columns across all years
-
--   Plotted distributions of overall spends across years
-
--   Calculated Z score for each MP for each year to determine over/under spend for that year
-
--   Repeat 'offenders' across multiple years?
-
-Outlier detection in:
-
--   Office spend (accounting for london/non london status)
-
--   Staffing spend (accounting for london/non london status)
-
--   Accommodation spend (accounting for whether MP owned property in London)
-
-Benford's law analysis?
-
-Average spend for each category over time - increasing? decreasing?
-
-Linearly? In line with inflation?
-
-Do MPs serving multiple terms increase costs over time?
-
-Systematic differences in expenses for MPs in different areas of the country?
-
-Zac gold smith did not claim any expenses for office spend over his ten year tenure (2010-2021)?
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+In addition to the MPs who had missing data (in years and categories where this was unusual for the data set), an analysis was also performed to detect outliers in terms of amount of spend. This was carried out using Z scores, which calculate the number of standard deviations a value falls from the mean. As the data of interest was roughly normally distributed, Z scores +/- 2 standard deviations from the mean were determined to be outliers (falling within the approximate 5th and 95th percentiles) .
 
 ```{r}
-read.csv("\\Data\\Master_Data.csv")
+hist(master_data$Overall.total.spend..calculated.)
+hist(master_data$Office_spend)
+hist(master_data$Staffing_spend)
+hist(master_data$Accommodation_spend)
 ```
 
-You can add options to executable code like this
+Plotting individual distributions for each year shows a number of years have bimodal distributions. Typically, one peak is observered towards the bottom end of the spending scale and another towards the middle. This is particularly prevalent in the accommodation spend data, and may represent the difference in claims between MPs who rent accommodation in London versus those own property and claim only utilities related expenses.
 
 ```{r}
-#| echo: false
-2 * 2
+
+overall_scatter <- ggplot(master_data, aes(Financial.year, Overall.total.spend..calculated., fill = Financial.year)) +
+  geom_violin() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylab('Overall Spend (£)') +
+  xlab('Financial Year') 
+
+show(overall_scatter)
+
+office_scatter <- ggplot(master_data, aes(Financial.year, Office_spend, fill = Financial.year)) +
+  geom_violin() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylab('Office Spend (£)') +
+  xlab('Financial Year') 
+
+show(office_scatter)
+
+staffing_scatter <- ggplot(master_data, aes(Financial.year, Staffing_spend, fill = Financial.year)) +
+  geom_violin() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylab('Staffing Spend (£)') +
+  xlab('Financial Year') 
+
+show(staffing_scatter)
+
+Accommodation_scatter <- ggplot(master_data, aes(Financial.year, Accommodation_spend, fill = Financial.year)) +
+  geom_violin() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylab('Accommodation Spend (£)') +
+  xlab('Financial Year') 
+
+show(Accommodation_scatter)
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+As associated costs may differ between MPs whose constituencies are based in London (where rents are higher for office spaces and staffing costs may be higher to account for London weighting) and those note, the z score analysis should control for this and for MPs who own property in London (and claim utilities only), those who rent property in London and those who claim hotel related expenses.
+
+```{r}
+#for controlling how much spend MPs are doing, note if their office in London Area or not (office and staffing), they own, rent or use hotels for accomondation in London
+constiuencies_in_london <- master_data$Constituency[grep("^Standard London Area budget.*$", master_data$Office_reason.for.budget.set)]
+constiuencies_not_in_london <-  master_data$Constituency[grep("^Standard non-London Area budget.*$", master_data$Office_reason.for.budget.set)]
+
+master_data$london_office <- ifelse(master_data$Constituency %in% constiuencies_in_london, 1, 0)
+
+#Note this will only work where I have access to accomodation reason for budget
+master_data$accomodation_own_rent_hotel <- 0 #Other/unknown accomoodation status
+
+master_data$accomodation_own_rent_hotel[grep(".*owns.*$", master_data$Accommodation_reason.for.budget.set)] <- 1 #owns their own home in London
+
+master_data$accomodation_own_rent_hotel[grep(".*renting.*$", master_data$Accommodation_reason.for.budget.set)] <- 2 #rents home
+
+master_data$accomodation_own_rent_hotel[grep(".*Hotels.*$", master_data$Accommodation_reason.for.budget.set)] <- 3 #Uses hotels
+
+```
+
+Z score analysis overall
+
+```{r}
+master_data <- master_data %>%
+  group_by(Financial.year, london_office, accomodation_own_rent_hotel) %>%
+  mutate(z_score_overall = (Overall.total.spend..calculated. - mean(Overall.total.spend..calculated.)) / sd(Overall.total.spend..calculated.)) %>%
+  ungroup()
+
+over_under_spends <- master_data %>%
+  filter(abs(z_score_overall) >= 2) #filter to only those at either "extreme"
+
+overall_overunderspends_plot <- ggplot(over_under_spends, aes(x = Financial.year.factor, y = z_score_overall)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ylab('Z Score (Overall Spend)') +
+  xlab('Financial Year') 
+
+show(overall_overunderspends_plot)
+
+```
+
+There are substantially more MPs who are spending significantly less than average each financial year than spending more. However, many MPs may be represented more than once.
+
+```{r}
+#find those who over or under spend in multiple years 
+
+unique_mps <- unique(over_under_spends$MP.name)
+
+mps_over_under_spending_multiple <- over_under_spends %>%  
+  # Keep only relevant categories
+  group_by(MP.name) %>%
+  summarise(
+    num_appearances = n(),                   # Total occurrences
+    overspend_count = sum(z_score_overall > 0),     # Count where score > 0
+    underspend_count   = sum(z_score_overall < 0),      # Count where score < 0
+    .groups = "drop"
+  ) %>%
+  arrange(desc(num_appearances))
+mps_over_under_spending_multiple
+
+```
+
+Where an MP appears multiple times this is mostly due to repeatedly underspending compared to the average. Although Jim Shannon was found to be spending more than average across 6 years.
+
+```{r}
+mps_over_under_spending_multiple %>%
+  arrange(desc(overspend_count))
+```
+
+To further break this down, the office, accommodation and staffing spends were also analysed to determine if any of these 3 categories were driving over or under spending in MPs.
+
+```{r}
+master_data <- master_data %>%
+  group_by(Financial.year, london_office) %>%
+  mutate(z_score_office = (Office_spend - mean(Office_spend)) / sd(Office_spend)) %>%
+  mutate(z_score_staffing = (Staffing_spend - mean(Staffing_spend)) / sd(Staffing_spend)) %>%
+  ungroup()
+
+master_data <- master_data %>%
+  group_by(Financial.year, accomodation_own_rent_hotel) %>%
+  mutate(z_score_accomodation = (Accommodation_spend - mean(Accommodation_spend)) / sd(Accommodation_spend)) %>%
+  ungroup()
+
+over_under_spends_office <- master_data %>%
+  filter(abs(z_score_office) >= 2)
+
+over_under_spends_staffing <- master_data %>%
+  filter(abs(z_score_staffing) >= 2)
+
+over_under_spends_accomodation <- master_data %>%
+  filter(abs(z_score_accomodation) >= 2)
+
+over_under_spends_office_plot <- ggplot(over_under_spends_office, aes(x = Financial.year.factor, y = z_score_office)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+over_under_spends_staffing_plot <- ggplot(over_under_spends_staffing, aes(x = Financial.year.factor, y = z_score_staffing)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+over_under_spends_accommodation_plot <- ggplot(over_under_spends_accomodation, aes(x = Financial.year.factor, y = z_score_accomodation)) +
+  geom_point() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+show(over_under_spends_office_plot)
+show(over_under_spends_staffing_plot)
+show(over_under_spends_accommodation_plot)
+
+```
+
+```{r}
+
+mps_over_under_spending_multiple_office <- over_under_spends_office %>%  
+  # Keep only relevant categories
+  group_by(MP.name) %>%
+  summarise(
+    num_appearances = n(),                   # Total occurrences
+    overspend_count_office = sum(z_score_office > 0),     # Count where score > 0
+    underspend_count_office  = sum(z_score_office < 0), # Count where score < 0
+    .groups = "drop"
+  ) %>%
+  arrange(desc(num_appearances))
+
+mps_over_under_spending_multiple_office
+
+
+mps_over_under_spending_multiple_office
+```
+
+Office and staffing spending follows a similar pattern to the overall spending. Where MPs appear multiple times it is usually in relation to spending below the average rather than above. Ian Blackford over spent the most in his office expenses with 3 separate occurrences. Chuka Umunna and Barry Gardiner both overspent on staffing costs twice in the covered period.
+
+```{r}
+
+mps_over_under_spending_multiple_staffing <- over_under_spends_staffing %>%  
+  # Keep only relevant categories
+  group_by(MP.name) %>%
+  summarise(
+    num_appearances = n(),                   # Total occurrences
+    overspend_count_staffing = sum(z_score_staffing > 0),     # Count where score > 0
+    underspend_count_staffing  = sum(z_score_staffing < 0), # Count where score < 0
+    .groups = "drop"
+  ) %>%
+  arrange(desc(num_appearances))
+
+
+
+```
+
+Accommodation spend followed a different pattern, where the multiple appearances of MPs in the dataset was driven by spending by more than average. Imran Hussain and Jonathan Reynolds both spent more than average on 7 occasions and a further 5 MPs spent more than average on accommodation on 4 or more occasions.
+
+```{r}
+
+mps_over_under_spending_multiple_accommodation <- over_under_spends_accomodation %>%  
+  # Keep only relevant categories
+  group_by(MP.name) %>%
+  summarise(
+    num_appearances = n(),                   # Total occurrences
+    overspend_count_accommodation = sum(z_score_accomodation > 0),     # Count where score > 0
+    underspend_count_accommodation  = sum(z_score_accomodation < 0), # Count where score < 0
+    .groups = "drop"
+  ) %>%
+  arrange(desc(num_appearances))
+
+mps_over_under_spending_multiple_accommodation
+
+```
+
+### Intrepretation
+
+While significant under spending can be a concern (as it could represent other sources of income which may or may not be declared) it is the recommendation of the report is to focus on those MPs and spending categories where significant over spending is regularly occurring. Jim Shannon was found to be spending more than average in the overall category 6 times, without appearing to spend more than average across the 3 sub categories (office, staffing and accommodation). This could indicate high spending across the 3 sub categories (without being significant) where others with higher spending in one or more categories may have less spending in other categories to balance out their overall spends. It could also indicate higher then average spending in a category not analysed (start up and wind up spend) and this should be analysed in future analysis.
+
+Across the 3 sub categories, only accommodation presented significant numbers (\>3) of repeat appearances by one or more MPs who had spent significantly more than average. after accounting for residential status. This may indicate an area where a review of the accommodation spend policy could be beneficial, to avoid over spending in the future.
+
+## Logistic Regression Modelling
+
+To further explore the relationship between spend categories and whether the constituency was in London (here defined by the proxy of London office location determined by reason for budget set) a logistic regression model was constructed predicting London office status and using office, staffing, accommodation and overall spend as predictors.
+
+```{r}
+log_reg_data <- master_data %>% 
+  select(MP.name, Office_spend, Staffing_spend, Accommodation_spend, Overall.total.spend..calculated., london_office)
+
+
+```
+
+In order to meet the assumption of non-co linearity an examination of the correlation between the predictor variables was performed:
+
+```{r}
+
+#check correlations of predictor variables
+
+# Remove the target column
+predictors_data <- log_reg_data[, !(names(log_reg_data) %in% c("london_office", "MP.name"))]
+
+#Some NAs are causing problems with the correlation function - remove these for now. Only affects a small number of rows
+predictors_data <- na.omit(predictors_data)
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(predictors_data)
+
+# Plot the correlation heatmap
+
+
+melted_corr_matrix <- melt(correlation_matrix)
+
+# Plot the heatmap with ggplot2
+ggplot(data = melted_corr_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab", 
+                       name="Correlation") +
+  theme_minimal() + # Minimal theme for a clean look
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  labs(x = "", y = "") + # Remove axis labels
+  geom_text(aes(Var1, Var2, label = round(value, 2)), color = "black", size = 4) +
+  theme(axis.text=element_text(size=15))
+
+```
+
+Overall total spend was highly correlated with both office and staffing spends and so should be omitted from the final model.
+
+```{r}
+set.seed(1) #for replicability
+
+#Use 70% of dataset as training set and remaining 30% as testing set
+
+
+sample <- sample(c(TRUE, FALSE), nrow(log_reg_data), replace=TRUE, prob=c(0.7,0.3))
+train <- log_reg_data[sample, ]
+test <- log_reg_data[!sample, ]  
+
+#fit model
+log_reg_model <- glm(london_office~Office_spend+Staffing_spend+Accommodation_spend, family="binomial", data=train) #omit overall spend as it will be correlated to the other 3
+
+
+#view model summary
+summary(log_reg_model)
+```
+
+All three predictors were significantly predictive of office location, with both unit increases in office and staffing spend associated with average increase in the log odds of the office location being in London of .000022 and .0000071 respectively. Accommodation spend was negatively predictive of London office location, with a unit increase in accommodation spend resulting in a decrease in the log odds of the office being in London of -.00063. MPs who represent London constituencies seem to spend more on office spends and staffing spends, but less on accommodation (perhaps because they own property in the area already and so claim fewer expenses).
+
+The predictive performance of the model, as show by McFaddens R2 was relatively good.
+
+```{r}
+pscl::pR2(log_reg_model)["McFadden"] #.47 is quite good for McFadden
+```
+
+Testing the model further with sensitivty and specificity analysis indicated the model is better at avoiding false positives i.e. mislabelling non-London offices as London offices then it is at labelling London offices correctly.
+
+```{r}
+
+#predict the test set and see where it differs from 'reality'
+
+test$office_loc_predict <- predict(log_reg_model, test, type="response")
+
+test$london_office_prediction <- ifelse(test$office_loc_predict >= 0.5, 1, 0)
+
+xtabs(~ london_office + london_office_prediction, data = test)
+
+
+#Sensitivity and specificity analysis
+
+sensitivity_london_office <- 268/(268+193) 
+
+specificity_london_office <- 2592/(2592 + 113)
+
+print(paste("Sensitivity:", sensitivity_london_office))
+print(paste("Specificity:", specificity_london_office))
+```
+
+The model could also be used as a form of outlier analysis, using spend data to predict an MPs office location. Where this was assigned to be London where it is not, this could indicate over spending in the MPs accounts, or if happening across a number of MPs, it could be taken as evidence of a needed adjustment to the allocated spends of MPs in other parts of the country.
+
+## Future Work
+
+The current analysis was limited in the variables examined, only analysing the variables that were most well populated and common across all the datasets. Future analysis should complete the analysis and include the variables not analysed, with adjustments made for the missing data present across some of the years in these variables. Further, the analysis did not take into account additional information regarding the MPs budgets. This was not available for all years, but future analysis could take into account the allocated budgets of MPs in the years where this data is available and calculate a proportion of the budget used by MPs. It should also incorporate additional information regarding additional funds allocated by IPSA to individuals - for example following an uplift application or carried forwards from previous years. Further modelling could ask if past over/underspending in MPs is predictive of future over/under spending and attempting to understand this relationship further.
